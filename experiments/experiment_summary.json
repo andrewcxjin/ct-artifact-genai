@@ -1,0 +1,22 @@
+{
+  "dl_atom_grid": [
+    32,
+    64,
+    128,
+    256
+  ],
+  "dl_nonzero_grid": [
+    4,
+    8,
+    12
+  ],
+  "lora_ranks": [
+    4,
+    8,
+    16
+  ],
+  "lora_steps": 1500,
+  "best_dl_n_atoms": 256,
+  "best_dl_n_nz": 12,
+  "best_dl_ssim": 0.8901153759424489
+}
