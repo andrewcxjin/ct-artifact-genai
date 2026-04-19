@@ -1,0 +1,7 @@
+{
+  "streak_intensity": 0.35,
+  "n_angles": 24,
+  "streak_width": 3,
+  "noise_std": 0.04,
+  "description": "TunedNaiveSimulator \u2014 bilateral, shadow streaks, 48 angles"
+}
