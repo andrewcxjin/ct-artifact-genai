@@ -1,0 +1,6 @@
+{
+  "n_atoms": 128,
+  "patch_size": 16,
+  "n_nonzero": 6,
+  "n_iter": 300
+}
