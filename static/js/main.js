@@ -177,9 +177,8 @@ async function generate() {
 
   const seed = parseInt(seedInput.value, 10) || 42;
 
-  // Build request payload
   const payload = {
-    model: selectedModel,
+    model:  selectedModel,
     seed,
     params: {},
     prompt: selectedModel === "lora" ? promptInput.value.trim() : "",
@@ -194,7 +193,6 @@ async function generate() {
     };
   }
 
-  // UI → loading state
   setUIState("loading");
 
   try {
@@ -206,19 +204,60 @@ async function generate() {
     const data = await res.json();
 
     if (!res.ok || !data.success) {
+      finishGenerating();
       showError(data.error || `Server error ${res.status}`);
       return;
     }
 
-    showResult(data, seed);
+    // Generation is async — poll for the result
+    pollJob(data.job_id, seed);
 
   } catch (err) {
+    finishGenerating();
     showError("Network error — is the Flask server running?");
-  } finally {
-    isGenerating = false;
-    generateBtn.classList.remove("loading");
-    btnText.textContent = "Synthesize CT Scan";
   }
+}
+
+async function pollJob(job_id, seed) {
+  try {
+    const res  = await fetch(`/api/job/${job_id}`);
+    const data = await res.json();
+
+    if (data.status === "done") {
+      finishGenerating();
+      showResult(data, seed);
+
+    } else if (data.status === "error") {
+      finishGenerating();
+      showError(data.error || "Generation failed.");
+
+    } else if (data.status === "not_found") {
+      finishGenerating();
+      showError("Job not found — please try again.");
+
+    } else {
+      // Still running — update elapsed time and poll again
+      const elapsed = data.elapsed || 0;
+      const mins    = Math.floor(elapsed / 60);
+      const secs    = elapsed % 60;
+      const timeStr = mins > 0
+        ? `${mins}m ${secs}s`
+        : `${secs}s`;
+      loadingLabel.textContent =
+        `${LOADING_LABELS[selectedModel] || "Synthesizing…"} (${timeStr})`;
+
+      setTimeout(() => pollJob(job_id, seed), 4000);
+    }
+  } catch (err) {
+    // Network blip — retry
+    setTimeout(() => pollJob(job_id, seed), 4000);
+  }
+}
+
+function finishGenerating() {
+  isGenerating = false;
+  generateBtn.classList.remove("loading");
+  btnText.textContent = "Synthesize CT Scan";
 }
 
 // ── UI state helpers ──────────────────────────────────────────────────────────
