@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CochleArt — CT Artifact Synthesis</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Inter:wght@300;400;500&family=JetBrains+Mono:wght@300;400&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/css/style.css" />
+</head>
+<body>
+
+  <!-- ── Navigation ─────────────────────────────────────────────────────── -->
+  <nav class="nav" id="nav">
+    <a href="#hero" class="nav-brand">COCHLE·ART</a>
+    <div class="nav-links">
+      <a href="#interface" class="nav-link">Generate</a>
+      <a href="#methodology" class="nav-link">Methodology</a>
+    </div>
+  </nav>
+
+  <!-- ── Hero ───────────────────────────────────────────────────────────── -->
+  <section class="hero" id="hero">
+    <div class="hero-content">
+      <p class="hero-eyebrow">MEDICAL AI RESEARCH &nbsp;·&nbsp; COCHLEAR IMPLANT IMAGING</p>
+      <h1 class="hero-title">
+        Synthetic<br><em>CT Artifact</em><br>Generation
+      </h1>
+      <p class="hero-body">
+        Three complementary models — physics simulation, sparse dictionary
+        learning, and LoRA-fine-tuned diffusion — synthesise realistic
+        cochlear-implant metal artifacts from clean CT phantoms.
+      </p>
+      <a href="#interface" class="hero-cta">
+        <span>Begin Synthesis</span>
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+          <path d="M1 7h12M7 1l6 6-6 6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </a>
+    </div>
+
+    <div class="hero-visual" aria-hidden="true">
+      <div class="ct-viewport">
+        <div class="ct-scan">
+          <!-- Skull rings -->
+          <div class="ct-ring" style="width:88%;height:88%;opacity:.18;border-style:solid;"></div>
+          <div class="ct-ring" style="width:78%;height:78%;opacity:.14;"></div>
+          <div class="ct-ring" style="width:68%;height:68%;opacity:.22;border-style:solid;"></div>
+          <div class="ct-ring" style="width:44%;height:44%;opacity:.10;"></div>
+          <div class="ct-ring" style="width:14%;height:14%;opacity:.16;border-style:solid;"></div>
+          <!-- Petrous bone dots -->
+          <div class="ct-dot" style="left:32%;top:54%;width:12%;height:10%;"></div>
+          <div class="ct-dot" style="right:32%;top:54%;width:12%;height:10%;"></div>
+          <!-- Sweep beam -->
+          <div class="ct-sweep"></div>
+          <!-- Crosshair lines -->
+          <div class="ct-line ct-line--h"></div>
+          <div class="ct-line ct-line--v"></div>
+        </div>
+        <div class="ct-label ct-label--tl">AXIAL</div>
+        <div class="ct-label ct-label--tr">L</div>
+        <div class="ct-label ct-label--bl">BONE&nbsp;WIN</div>
+        <div class="ct-label ct-label--br">512×512</div>
+      </div>
+    </div>
+
+    <a href="#interface" class="hero-scroll" aria-label="Scroll down">
+      <div class="scroll-chevron"></div>
+    </a>
+  </section>
+
+  <!-- ── Interface ──────────────────────────────────────────────────────── -->
+  <section class="interface" id="interface">
+    <div class="section-header">
+      <span class="section-tag">ARTIFACT SYNTHESIS ENGINE</span>
+      <h2 class="section-title">Generate Synthetic CT</h2>
+    </div>
+
+    <div class="interface-layout">
+
+      <!-- Left: Controls -->
+      <aside class="controls">
+
+        <!-- Model selector -->
+        <div class="ctrl-group">
+          <h3 class="ctrl-label">Model</h3>
+          <div class="model-cards" id="modelCards">
+
+            <button class="model-card active" data-model="naive" aria-pressed="true">
+              <div class="model-card__icon">
+                <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+                  <circle cx="11" cy="11" r="3" stroke="currentColor" stroke-width="1.2"/>
+                  <line x1="11" y1="0" x2="11" y2="5"  stroke="currentColor" stroke-width="1.1"/>
+                  <line x1="11" y1="17" x2="11" y2="22" stroke="currentColor" stroke-width="1.1"/>
+                  <line x1="0"  y1="11" x2="5"  y2="11" stroke="currentColor" stroke-width="1.1"/>
+                  <line x1="17" y1="11" x2="22" y2="11" stroke="currentColor" stroke-width="1.1"/>
+                  <line x1="2.9" y1="2.9" x2="6.4" y2="6.4"   stroke="currentColor" stroke-width="1.1"/>
+                  <line x1="15.6" y1="15.6" x2="19.1" y2="19.1" stroke="currentColor" stroke-width="1.1"/>
+                  <line x1="19.1" y1="2.9" x2="15.6" y2="6.4"   stroke="currentColor" stroke-width="1.1"/>
+                  <line x1="6.4" y1="15.6" x2="2.9"  y2="19.1"  stroke="currentColor" stroke-width="1.1"/>
+                </svg>
+              </div>
+              <div class="model-card__body">
+                <span class="model-card__name">Physics Simulation</span>
+                <span class="model-card__desc">Deterministic beam-hardening ray-casting — no training required</span>
+              </div>
+              <span class="model-card__badge">Fast</span>
+            </button>
+
+            <button class="model-card" data-model="dict" aria-pressed="false" id="dictCard">
+              <div class="model-card__icon">
+                <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+                  <rect x="1"  y="1"  width="8" height="8" stroke="currentColor" stroke-width="1.2" rx=".5"/>
+                  <rect x="13" y="1"  width="8" height="8" stroke="currentColor" stroke-width="1.2" rx=".5" opacity=".5"/>
+                  <rect x="1"  y="13" width="8" height="8" stroke="currentColor" stroke-width="1.2" rx=".5" opacity=".5"/>
+                  <rect x="13" y="13" width="8" height="8" stroke="currentColor" stroke-width="1.2" rx=".5" opacity=".8"/>
+                </svg>
+              </div>
+              <div class="model-card__body">
+                <span class="model-card__name">Dictionary Learning</span>
+                <span class="model-card__desc">Sparse reconstruction from 128 learned CT texture atoms</span>
+              </div>
+              <span class="model-card__badge">Classical ML</span>
+            </button>
+
+            <button class="model-card" data-model="lora" aria-pressed="false" id="loraCard">
+              <div class="model-card__icon">
+                <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+                  <circle cx="11" cy="4"  r="2" stroke="currentColor" stroke-width="1.2"/>
+                  <circle cx="4"  cy="18" r="2" stroke="currentColor" stroke-width="1.2"/>
+                  <circle cx="18" cy="18" r="2" stroke="currentColor" stroke-width="1.2"/>
+                  <line x1="11" y1="6"  x2="4"  y2="16" stroke="currentColor" stroke-width="1" opacity=".7"/>
+                  <line x1="11" y1="6"  x2="18" y2="16" stroke="currentColor" stroke-width="1" opacity=".7"/>
+                  <line x1="6"  y1="18" x2="16" y2="18" stroke="currentColor" stroke-width="1" opacity=".5"/>
+                </svg>
+              </div>
+              <div class="model-card__body">
+                <span class="model-card__name">LoRA Diffusion</span>
+                <span class="model-card__desc">Stable Diffusion v1.5 fine-tuned on cochlear implant CT slices</span>
+              </div>
+              <span class="model-card__badge">Deep Learning</span>
+            </button>
+
+          </div>
+        </div>
+
+        <!-- Prompt input (LoRA only) -->
+        <div class="ctrl-group" id="promptGroup" style="display:none">
+          <h3 class="ctrl-label">Prompt</h3>
+          <div class="preset-row" id="presetRow">
+            <button class="preset-btn active" data-preset="standard">Standard</button>
+            <button class="preset-btn" data-preset="severe">Severe</button>
+            <button class="preset-btn" data-preset="subtle">Subtle</button>
+            <button class="preset-btn" data-preset="custom">Custom</button>
+          </div>
+          <textarea
+            id="promptInput"
+            class="prompt-textarea"
+            rows="3"
+            placeholder="Describe the CT artifact to generate…"
+          ></textarea>
+        </div>
+
+        <!-- Physics parameters (Naive only) -->
+        <div class="ctrl-group" id="paramsGroup">
+          <h3 class="ctrl-label">Parameters</h3>
+          <div class="slider-row">
+            <label class="slider-label">
+              Streak Intensity
+              <span class="slider-val" id="valStreakIntensity">0.35</span>
+            </label>
+            <input class="slider" type="range" id="streakIntensity"
+                   min="0.10" max="0.80" step="0.05" value="0.35" />
+          </div>
+          <div class="slider-row">
+            <label class="slider-label">
+              Noise Level
+              <span class="slider-val" id="valNoiseStd">0.04</span>
+            </label>
+            <input class="slider" type="range" id="noiseStd"
+                   min="0.01" max="0.15" step="0.01" value="0.04" />
+          </div>
+          <div class="slider-row">
+            <label class="slider-label">
+              Streak Angles
+              <span class="slider-val" id="valNAngles">24</span>
+            </label>
+            <input class="slider" type="range" id="nAngles"
+                   min="8" max="48" step="4" value="24" />
+          </div>
+        </div>
+
+        <!-- Seed -->
+        <div class="ctrl-group ctrl-group--inline">
+          <h3 class="ctrl-label">Seed</h3>
+          <div class="seed-row">
+            <input class="seed-input" type="number" id="seedInput" value="42" min="0" max="9999" />
+            <button class="seed-random" id="seedRandom" title="Random seed">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                <path d="M1 3h3l1.5 2M13 3h-3L8.5 5M1 11h3l1.5-2M13 11h-3L8.5 9M5.5 5l3 4M8.5 5l-3 4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <button class="generate-btn" id="generateBtn">
+          <span class="generate-btn__text">Synthesize CT Scan</span>
+          <span class="generate-btn__arrow">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+              <path d="M1 7h12M7 1l6 6-6 6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </span>
+        </button>
+
+      </aside>
+
+      <!-- Right: Output display -->
+      <div class="output-panel">
+
+        <!-- Placeholder -->
+        <div class="output-placeholder" id="outputPlaceholder">
+          <div class="placeholder-grid" aria-hidden="true">
+            <div class="pg-ring" style="width:60%;height:60%;"></div>
+            <div class="pg-ring" style="width:40%;height:40%;opacity:.5"></div>
+            <div class="pg-ring" style="width:20%;height:20%;opacity:.3"></div>
+          </div>
+          <p class="placeholder-label">Select a model and press<br><strong>Synthesize CT Scan</strong></p>
+        </div>
+
+        <!-- Result view -->
+        <div class="output-result" id="outputResult" style="display:none">
+          <div class="single-output">
+            <span class="image-slot__label" id="outputLabel">GENERATED OUTPUT</span>
+            <img class="output-img" id="imgOutput" alt="Generated CT artifact" />
+          </div>
+
+          <div class="result-meta" id="resultMeta">
+            <div class="meta-pill" id="metaModel">—</div>
+            <div class="meta-pill">256 × 256 px</div>
+            <div class="meta-pill" id="metaSeed">seed —</div>
+            <div class="meta-pill" id="metaSSIM" style="display:none">SSIM —</div>
+          </div>
+        </div>
+
+        <!-- Error view -->
+        <div class="output-error" id="outputError" style="display:none">
+          <span class="error-icon">⚠</span>
+          <p class="error-message" id="errorMessage">Generation failed.</p>
+        </div>
+
+        <!-- Loading overlay -->
+        <div class="output-loading" id="outputLoading" style="display:none" aria-live="polite">
+          <div class="loading-scanner">
+            <div class="scanner-line"></div>
+          </div>
+          <p class="loading-label" id="loadingLabel">Synthesizing…</p>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Methodology ─────────────────────────────────────────────────────── -->
+  <section class="methodology" id="methodology">
+    <div class="section-header">
+      <span class="section-tag">THREE APPROACHES</span>
+      <h2 class="section-title">Methodology</h2>
+    </div>
+
+    <div class="method-grid">
+
+      <div class="method-card">
+        <div class="method-card__num">01</div>
+        <h3 class="method-card__title">Physics Simulation</h3>
+        <p class="method-card__body">
+          Inserts a synthetic titanium-density ellipse at a randomised
+          position within the petrous temporal bone, then ray-casts outward
+          to deposit exponentially-decaying bright/dark beam-hardening streaks.
+          Gaussian photon-starvation noise is added as a final pass.
+        </p>
+        <div class="method-card__tags">
+          <span>No training</span>
+          <span>Deterministic</span>
+          <span>&lt; 2 s</span>
+        </div>
+      </div>
+
+      <div class="method-card">
+        <div class="method-card__num">02</div>
+        <h3 class="method-card__title">Dictionary Learning</h3>
+        <p class="method-card__body">
+          A 128-atom dictionary was trained offline on overlapping 16 × 16 pixel
+          patches from real cochlear-implant CT slices using
+          MiniBatchDictionaryLearning. At inference, each patch of the phantom
+          is sparse-coded against the atoms (OMP, <em>k</em> = 6) and
+          back-projected to reconstruct a texture-consistent image.
+        </p>
+        <div class="method-card__tags">
+          <span>Pre-trained atoms</span>
+          <span>SSIM-scored</span>
+          <span>~5–10 s</span>
+        </div>
+      </div>
+
+      <div class="method-card">
+        <div class="method-card__num">03</div>
+        <h3 class="method-card__title">LoRA Diffusion</h3>
+        <p class="method-card__body">
+          Stable Diffusion v1.5 was fine-tuned for 1 500 steps on
+          z-filtered axial CT slices using Low-Rank Adaptation (rank 16,
+          α 32) applied to the UNet's attention projections. The web app
+          runs img2img inference: the skull phantom seeds the latent,
+          and the prompt steers the artifact characteristics.
+        </p>
+        <div class="method-card__tags">
+          <span>LoRA rank 16</span>
+          <span>SD v1.5</span>
+          <span>~30–90 s</span>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ── Footer ─────────────────────────────────────────────────────────── -->
+  <footer class="footer">
+    <div class="footer-brand">COCHLE·ART</div>
+    <p class="footer-sub">CT Artifact Generation &nbsp;·&nbsp; Medical AI Research</p>
+    <p class="footer-note">
+      Inference only — no training occurs at runtime.
+      Model weights are loaded from the local <code>models/</code> directory.
+    </p>
+  </footer>
+
+  <script src="/static/js/main.js"></script>
+</body>
+</html>
