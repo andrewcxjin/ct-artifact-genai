@@ -300,8 +300,21 @@ def _run_replicate_job(job_id: str, data: dict) -> None:
             inp["noise_std"]        = float(params.get("noise_std", 0.04))
             inp["n_angles"]         = int(params.get("n_angles", 24))
 
-        output   = replicate.run(REPLICATE_MODEL, input=inp)
-        img_data = urllib.request.urlopen(str(output)).read()
+        # Resolve to a specific version to avoid 404s with versionless API calls
+        if ":" not in REPLICATE_MODEL:
+            model      = replicate.models.get(REPLICATE_MODEL)
+            version_id = model.latest_version.id
+            model_ref  = f"{REPLICATE_MODEL}:{version_id}"
+            print(f"Replicate: resolved to {model_ref}", flush=True)
+        else:
+            model_ref = REPLICATE_MODEL
+
+        output = replicate.run(model_ref, input=inp)
+        print(f"Replicate: raw output type={type(output)} value={output!r}", flush=True)
+
+        # output may be a URL string, a FileOutput, or a list — normalise it
+        url = output[0] if isinstance(output, list) else output
+        img_data = urllib.request.urlopen(str(url)).read()
 
         _jobs[job_id] = {
             "status":       "done",
@@ -310,6 +323,9 @@ def _run_replicate_job(job_id: str, data: dict) -> None:
             "metrics":      {},
         }
     except Exception as exc:
+        import traceback
+        print(f"Replicate job {job_id} failed: {exc}", flush=True)
+        traceback.print_exc()
         _jobs[job_id] = {"status": "error", "error": str(exc)}
 
 
@@ -366,7 +382,9 @@ def generate():
     job_id   = uuid.uuid4().hex[:10]
     _jobs[job_id] = {"status": "running", "started_at": time.time()}
 
-    target = _run_replicate_job if REPLICATE_MODEL else _run_job
+    model_type = data.get("model", "naive")
+    use_replicate = REPLICATE_MODEL and model_type == "lora"
+    target = _run_replicate_job if use_replicate else _run_job
     t = threading.Thread(target=target, args=(job_id, data), daemon=True)
     t.start()
 
