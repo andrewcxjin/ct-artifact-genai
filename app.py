@@ -13,6 +13,9 @@ import io
 import os
 import sys
 import base64
+import threading
+import time
+import uuid
 from pathlib import Path
 
 import numpy as np
@@ -231,7 +234,10 @@ def run_lora(base_img: np.ndarray, prompt: str, seed: int) -> tuple:
         )
 
         pipe, device = _load_lora_pipeline()
-        pil_in       = Image.fromarray(base_img).convert("RGB").resize((256, 256))
+        pil_in = Image.fromarray(base_img).convert("RGB").resize((256, 256))
+
+        # CPU inference is ~150 s/step; cap at 4 steps to keep wait under 15 min.
+        steps = INFERENCE_STEPS if device == "cuda" else 4
 
         ctx = torch.autocast(device) if device == "cuda" else contextlib.nullcontext()
         with ctx:
@@ -240,7 +246,7 @@ def run_lora(base_img: np.ndarray, prompt: str, seed: int) -> tuple:
                 negative_prompt=NEGATIVE_PROMPT,
                 image=pil_in,
                 strength=INFERENCE_STRENGTH,
-                num_inference_steps=INFERENCE_STEPS,
+                num_inference_steps=steps,
                 guidance_scale=INFERENCE_GUIDANCE,
                 generator=torch.Generator(device).manual_seed(seed),
             )
@@ -267,55 +273,94 @@ def status():
     })
 
 
-@app.route("/api/generate", methods=["POST"])
-def generate():
-    """
-    Generate a synthetic CT scan.
+# ── Async job queue ───────────────────────────────────────────────────────────
+# Keyed by job_id; values: {status, output_image, model, metrics, error, started_at}
+_jobs: dict = {}
 
-    Request JSON:
-        model  : "naive" | "dict" | "lora"
-        prompt : text prompt (used by LoRA only)
-        params : dict of model-specific parameters (used by Naive)
-        seed   : integer random seed
-    """
-    data       = request.get_json(force=True)
+
+def _run_job(job_id: str, data: dict) -> None:
+    """Background thread: run inference and write result into _jobs."""
     model_type = data.get("model", "naive")
     prompt     = data.get("prompt", "").strip()
     params     = data.get("params", {})
     seed       = int(data.get("seed", 42))
 
     try:
-        # LoRA img2img needs a real implant slice (matches training distribution).
-        # Naive/Dict work better on a clean skull-base slice (artifact is added on top).
         prefer_implant = (model_type == "lora")
         base_img = load_real_ct_slice(seed=seed % 97, prefer_implant=prefer_implant)
     except ValueError as exc:
-        return jsonify({"success": False, "error": str(exc)}), 500
+        _jobs[job_id] = {"status": "error", "error": str(exc)}
+        return
 
-    if model_type == "naive":
-        result, meta = run_naive(base_img, params, seed)
+    try:
+        if model_type == "naive":
+            result, meta = run_naive(base_img, params, seed)
+        elif model_type == "dict":
+            result, meta = run_dict(base_img)
+        elif model_type == "lora":
+            if not prompt:
+                from config import TRAIN_PROMPT
+                prompt = TRAIN_PROMPT
+            result, meta = run_lora(base_img, prompt, seed)
+        else:
+            _jobs[job_id] = {"status": "error", "error": "Unknown model type"}
+            return
 
-    elif model_type == "dict":
-        result, meta = run_dict(base_img)
+        if result is None:
+            _jobs[job_id] = {"status": "error",
+                             "error": meta.get("error", "Generation failed")}
+            return
 
-    elif model_type == "lora":
-        if not prompt:
-            from config import TRAIN_PROMPT
-            prompt = TRAIN_PROMPT
-        result, meta = run_lora(base_img, prompt, seed)
+        _jobs[job_id] = {
+            "status":       "done",
+            "output_image": encode_image(result),
+            "model":        model_type,
+            "metrics":      meta,
+        }
+    except Exception as exc:
+        _jobs[job_id] = {"status": "error", "error": str(exc)}
 
-    else:
-        return jsonify({"success": False, "error": "Unknown model type"}), 400
 
-    if result is None:
-        return jsonify({"success": False, "error": meta.get("error", "Generation failed")}), 500
+@app.route("/api/generate", methods=["POST"])
+def generate():
+    """
+    Start an async generation job. Returns immediately with a job_id.
+    Poll /api/job/<job_id> for status and result.
+    """
+    data     = request.get_json(force=True)
+    job_id   = uuid.uuid4().hex[:10]
+    _jobs[job_id] = {"status": "running", "started_at": time.time()}
 
-    return jsonify({
-        "success":      True,
-        "output_image": encode_image(result),
-        "model":        model_type,
-        "metrics":      meta,
-    })
+    t = threading.Thread(target=_run_job, args=(job_id, data), daemon=True)
+    t.start()
+
+    return jsonify({"success": True, "job_id": job_id})
+
+
+@app.route("/api/job/<job_id>")
+def job_status(job_id: str):
+    """Poll for job result. Returns status + result when done."""
+    job = _jobs.get(job_id)
+    if not job:
+        return jsonify({"status": "not_found"}), 404
+
+    resp = {"status": job["status"]}
+    if job["status"] == "running":
+        resp["elapsed"] = round(time.time() - job.get("started_at", time.time()))
+    elif job["status"] == "done":
+        resp.update({
+            "success":      True,
+            "output_image": job["output_image"],
+            "model":        job["model"],
+            "metrics":      job["metrics"],
+        })
+        # Clean up to free memory
+        del _jobs[job_id]
+    elif job["status"] == "error":
+        resp["error"] = job.get("error", "Unknown error")
+        del _jobs[job_id]
+
+    return jsonify(resp)
 
 
 if __name__ == "__main__":
