@@ -12,3 +12,4 @@ peft>=0.5
 accelerate>=0.21
 flask>=3.0
 gunicorn>=21.0
+replicate>=0.25
