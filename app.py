@@ -15,8 +15,14 @@ import sys
 import base64
 import threading
 import time
+import urllib.request
 import uuid
 from pathlib import Path
+
+# If set, inference is routed to Replicate instead of running locally.
+# Set this env var on Railway once the model is pushed to Replicate.
+# Format: "owner/model-name" e.g. "andrewcxjin/cochle-art"
+REPLICATE_MODEL = os.environ.get("REPLICATE_MODEL")
 
 import numpy as np
 from PIL import Image
@@ -278,6 +284,35 @@ def status():
 _jobs: dict = {}
 
 
+def _run_replicate_job(job_id: str, data: dict) -> None:
+    """Background thread: call Replicate API and write result into _jobs."""
+    try:
+        import replicate
+
+        model_type = data.get("model", "naive")
+        seed       = int(data.get("seed", 42))
+        prompt     = data.get("prompt", "").strip()
+        params     = data.get("params", {})
+
+        inp = {"model": model_type, "seed": seed, "prompt": prompt}
+        if model_type == "naive":
+            inp["streak_intensity"] = float(params.get("streak_intensity", 0.35))
+            inp["noise_std"]        = float(params.get("noise_std", 0.04))
+            inp["n_angles"]         = int(params.get("n_angles", 24))
+
+        output   = replicate.run(REPLICATE_MODEL, input=inp)
+        img_data = urllib.request.urlopen(str(output)).read()
+
+        _jobs[job_id] = {
+            "status":       "done",
+            "output_image": base64.b64encode(img_data).decode(),
+            "model":        model_type,
+            "metrics":      {},
+        }
+    except Exception as exc:
+        _jobs[job_id] = {"status": "error", "error": str(exc)}
+
+
 def _run_job(job_id: str, data: dict) -> None:
     """Background thread: run inference and write result into _jobs."""
     model_type = data.get("model", "naive")
@@ -331,7 +366,8 @@ def generate():
     job_id   = uuid.uuid4().hex[:10]
     _jobs[job_id] = {"status": "running", "started_at": time.time()}
 
-    t = threading.Thread(target=_run_job, args=(job_id, data), daemon=True)
+    target = _run_replicate_job if REPLICATE_MODEL else _run_job
+    t = threading.Thread(target=target, args=(job_id, data), daemon=True)
     t.start()
 
     return jsonify({"success": True, "job_id": job_id})
